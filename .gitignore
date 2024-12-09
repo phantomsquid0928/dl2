@@ -1,0 +1,10 @@
+projectdataset/responsedata
+dataset/*.txt
+dataset/*.npy
+dataset/*.pkl
+__pycache__
+cloudflared
+cloudflared.log
+cloudflare_server.ipynb
+launch.json
+ch06/*.pkl
