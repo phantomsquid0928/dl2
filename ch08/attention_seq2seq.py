@@ -68,25 +68,63 @@ class AttentionDecoder:
 
         return denc_hs
 
-    def generate(self, enc_hs, start_id, sample_size):
-        sampled = []
-        sample_id = start_id
+    # def generate(self, enc_hs, start_id, sample_size):
+    #     sampled = []
+    #     sample_id = start_id
+    #     h = enc_hs[:, -1]
+    #     self.lstm.set_state(h)
+
+    #     for _ in range(sample_size):
+    #         x = np.array([sample_id]).reshape((1, 1))
+
+    #         out = self.embed.forward(x)
+    #         dec_hs = self.lstm.forward(out)
+    #         c = self.attention.forward(enc_hs, dec_hs)
+    #         out = np.concatenate((c, dec_hs), axis=2)
+    #         score = self.affine.forward(out)
+
+    #         sample_id = np.argmax(score.flatten())
+    #         sampled.append(sample_id)
+
+    #     return sampled
+
+    def generate(self, enc_hs, start_ids, sample_size):
+        """
+        Generates sequences for a batch of samples.
+        
+        :param enc_hs: Encoded hidden states (batch_size, seq_len, hidden_size).
+        :param start_ids: Start tokens for each sample in the batch (batch_size,).
+        :param sample_size: Number of tokens to generate per sample.
+        :return: List of generated sequences (batch_size, sample_size).
+        """
+        batch_size = len(start_ids)
+        sampled = [[] for _ in range(batch_size)]
+        sample_ids = np.array(start_ids).reshape((batch_size, 1))
+        
+        # Initialize hidden state for the decoder
         h = enc_hs[:, -1]
         self.lstm.set_state(h)
 
         for _ in range(sample_size):
-            x = np.array([sample_id]).reshape((1, 1))
+            # Prepare input for the current timestep
+            x = sample_ids.reshape((batch_size, 1))  # Shape: (batch_size, 1)
 
+            # Forward through decoder
             out = self.embed.forward(x)
             dec_hs = self.lstm.forward(out)
             c = self.attention.forward(enc_hs, dec_hs)
             out = np.concatenate((c, dec_hs), axis=2)
             score = self.affine.forward(out)
 
-            sample_id = np.argmax(score.flatten())
-            sampled.append(sample_id)
+            # Sample or choose max-probability tokens for each batch
+            sample_ids = np.argmax(score, axis=2)  # Shape: (batch_size, 1)
+
+            # Append generated tokens to the respective sequences
+            for i in range(batch_size):
+                sampled[i].append(sample_ids[i, 0].astype(np.int16)) #TODO: 
 
         return sampled
+
 
 
 class AttentionSeq2seq(Seq2seq):

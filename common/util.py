@@ -263,6 +263,56 @@ def eval_seq2seq(model, question, correct, id_to_char,
 
     return 1 if guess == correct else 0
 
+def eval_seq2seq_chunked(model, questions, correct_answers,
+                          id_to_char, verbose=False, is_reverse=False):
+    batch_size = len(questions)
+    correct_count = 0
+
+    # Prepare inputs and targets
+    start_ids = [correct[0] for correct in correct_answers]
+    correct_trimmed = [correct[1:] for correct in correct_answers]
+
+    # Generate predictions for the batch
+    predictions = model.generate(questions, start_ids, max([len(c) for c in correct_trimmed]))
+
+    # Evaluate each sample in the batch
+    for i in range(batch_size):
+        question = questions[i]
+        correct = correct_trimmed[i]
+        guess = predictions[i]
+
+        # Convert IDs to strings
+        question_str = ''.join([id_to_char[np.int16(c)] for c in question.flatten()]) # np.int16(c) when uses int16
+        correct_str = ''.join([id_to_char[np.int16(c)] for c in correct])
+        guess_str = ''.join([id_to_char[np.int16(c)] for c in guess])
+
+        if verbose and i < 10:  # Limit verbose output to first 10 samples
+            if is_reverse:
+                question_str = question_str[::-1]
+
+            colors = {'ok': '\033[92m', 'fail': '\033[91m', 'close': '\033[0m'}
+            print('Q', question_str)
+            print('T', correct_str)
+
+            is_windows = os.name == 'nt'
+            if correct_str == guess_str:
+                mark = colors['ok'] + '☑' + colors['close']
+                if is_windows:
+                    mark = 'O'
+                print(mark + ' ' + guess_str)
+            else:
+                mark = colors['fail'] + '☒' + colors['close']
+                if is_windows:
+                    mark = 'X'
+                print(mark + ' ' + guess_str)
+            print('---')
+
+        # Increment correct count if prediction matches the target
+        if guess_str == correct_str:
+            correct_count += 1
+
+    return correct_count
+
 
 def analogy(a, b, c, word_to_id, id_to_word, word_matrix, top=5, answer=None):
     for word in (a, b, c):

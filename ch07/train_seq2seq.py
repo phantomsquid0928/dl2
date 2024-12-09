@@ -30,8 +30,8 @@ max_epoch = 25
 max_grad = 5.0
 
 # 일반 혹은 엿보기(Peeky) 설정 =====================================
-model = Seq2seq(vocab_size, wordvec_size, hidden_size)
-# model = PeekySeq2seq(vocab_size, wordvec_size, hidden_size)
+#model = Seq2seq(vocab_size, wordvec_size, hidden_size)
+model = PeekySeq2seq(vocab_size, wordvec_size, hidden_size)
 # ================================================================
 optimizer = Adam()
 trainer = Trainer(model, optimizer)
