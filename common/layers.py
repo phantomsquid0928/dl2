@@ -105,26 +105,27 @@ class Sigmoid:
         dx = dout * (1.0 - self.out) * self.out
         return dx
 
-
-class SigmoidWithLoss:
+##modified
+class SigmoidWithLoss: #not suitable for multilabel classification, modified.
     def __init__(self):
         self.params, self.grads = [], []
         self.loss = None
         self.y = None  # sigmoid의 출력
         self.t = None  # 정답 데이터
 
-    def forward(self, x, t):
+    def forward(self, x, t): 
         self.t = t
-        self.y = 1 / (1 + np.exp(-x))
-
-        self.loss = cross_entropy_error(np.c_[1 - self.y, self.y], self.t)
-
+        self.y = 1 / (1 + np.exp(-x))  # Sigmoid activation
+        batch_size = t.shape[0]
+        self.loss = -np.sum(
+            self.t * np.log(self.y + 1e-7) + (1 - self.t) * np.log(1 - self.y + 1e-7)
+        ) / batch_size
         return self.loss
 
     def backward(self, dout=1):
-        batch_size = self.t.shape[0]
-
+        batch_size = self.t.shape[0] 
         dx = (self.y - self.t) * dout / batch_size
+
         return dx
 
 

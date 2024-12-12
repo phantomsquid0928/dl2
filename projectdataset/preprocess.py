@@ -68,27 +68,29 @@ class preprocess:
                 final_score += 1
         return final_score
 
-    def preprocess_dataset(self, dataset, mod=0, include_context=True):
+    def preprocess_dataset(self, dataset, include_context=True):
         """
         Preprocesses the dataset for multitask training with unique IDs for each utterance,
         while separating TL (training) and VL (validation) sets.
 
         - Generation task:
-            Input: human utterance (+ optional context) + relevant evidence.
+            Input: human utterance (+ optional context).
             Target: bot utterance.
-        - Classification task:
-            Input: bot utterance + relevant evidence.
-            Label: final_score (0–9).
+        - Classification task 1:
+            Input: bot utterance.
+            Output: Multi-label classification of utterance evaluation (9 binary labels).
+        - Classification task 2:
+            Input: full conversation context (merged utterance_text values).
+            Output: Single binary label for likeability.
 
         :param dataset: Dataset to process (contains TL and VL keys).
-        :param mod: If 0, skips fetching data from URLs.
         :param include_context: Whether to include full conversation context as part of input.
         :return: 
-            (generation_train, classification_train), 
-            (generation_val, classification_val)
+            (generation_train, classification1_train, classification2_train), 
+            (generation_val, classification1_val, classification2_val)
         """
-        generation_train, classification_train = [], []
-        generation_val, classification_val = [], []
+        generation_train, classification1_train, classification2_train = [], [], []
+        generation_val, classification1_val, classification2_val = [], [], []
 
         # Build the vocabulary by iterating over all utterances
         for k, v in dataset.items():
@@ -107,72 +109,87 @@ class preprocess:
             for title, datas in v.items():
                 for data in datas:
                     conversation = data['dataset']['conversations'][0]
-                    evidence_sources = conversation['metadata'].get('answer_evidence', [])
-
-                    # Fetch evidence content if mod != 0
-                    article_content = ""
-                    if mod != 0:
-                        for source in evidence_sources:
-                            article_content += self.fetch_article_content(source.get('source', ''))
-
-                    # Process conversation
+                    likeability = conversation.get('conversation_evaluation', {}).get('likeability', [])
                     utterances = conversation['utterances']
+
+                    # Process context for classification2
+                    full_context = " ".join([utt["utterance_text"] for utt in utterances])
+                    full_context_ids = np.array([self.char_to_id[char] for char in full_context], dtype=np.int16)
+                    likeability_label = 1 if sum(1 for lbl in likeability if lbl == "yes") >= 2 else 0
+                    classification2_item = {
+                        "id": conversation.get("conversation_id", ""),
+                        "input": full_context_ids,
+                        "output": likeability_label,
+                    }
+                    if is_training:
+                        classification2_train.append(classification2_item)
+                    else:
+                        classification2_val.append(classification2_item)
+
+                    # Process human-bot pairs for generation and classification1
                     context = []  # Context for human-bot conversation flow
+                    for i in range(0, len(utterances), 2):  # Iterate in steps of 2 (human-bot pairs)
+                        if i + 1 >= len(utterances):
+                            break
+                        human_utterance = utterances[i]
+                        bot_utterance = utterances[i + 1]
 
-                    for i, utterance in enumerate(utterances):
-                        speaker_id = utterance['speaker_id']
-                        utterance_text = utterance['utterance_text']
-                        exchange_id = utterance.get('exchange_id', '')
-                        utterance_id = utterance.get('utterance_id', '')
-                        unique_id = f"{exchange_id}_{utterance_id}"
+                        # Human utterance processing for generation input
+                        human_text = human_utterance["utterance_text"]
+                        human_ids = np.array([self.char_to_id[char] for char in human_text], dtype=np.int16)
+                        bot_text = bot_utterance["utterance_text"]
+                        bot_ids = np.array([self.char_to_id[char] for char in bot_text], dtype=np.int16)
 
-                        # Convert utterance_text to int16 array, 64 is too huge
-                        utterance_ids = np.array([self.char_to_id[char] for char in utterance_text], dtype=np.int16)
+                        # Generation task
+                        if include_context:
+                            human_context = np.array(
+                                [self.char_to_id[char] for char in " ".join(context)],
+                                dtype=np.int16,
+                            )
+                            input_data = np.concatenate((human_context, human_ids))
+                        else:
+                            input_data = human_ids
 
-                        # Add to classification dataset
-                        if speaker_id == 0:  # Bot utterance
-                            evaluations = utterance.get('utterance_evaluation', [])
-                            final_score = self.compute_final_score(evaluations) if len(evaluations) == 3 else 0
+                        generation_item = {
+                            "id": bot_utterance.get("exchange_id", "") + "_" + bot_utterance.get("utterance_id", ""),
+                            "input": input_data,
+                            "output": bot_ids,
+                        }
+                        if is_training:
+                            generation_train.append(generation_item)
+                        else:
+                            generation_val.append(generation_item)
 
-                            relevant_evidence = self.extract_relevant_sentences(article_content, " ".join(context)) if mod != 0 else ""
-                            evidence_ids = np.array([self.char_to_id[char] for char in relevant_evidence], dtype=np.int16)
+                        # Classification1 task
+                        evaluations = bot_utterance.get("utterance_evaluation", [])
+                        if len(evaluations) == 3:
+                            output = np.zeros(9, dtype=np.int16)
+                            for key in evaluations[0].keys():  # 9 evaluation keys
+                                votes = sum(1 for e in evaluations if e[key] == "yes")
+                                if votes >= 2:
+                                    output[list(evaluations[0].keys()).index(key)] = 1
 
-                            classification_item = {
-                                "id": unique_id,
-                                "input": np.concatenate((utterance_ids, evidence_ids)),
-                                "label": final_score
-                            }
-                            if final_score > 0:
-                                if is_training:
-                                    classification_train.append(classification_item)
-                                else:
-                                    classification_val.append(classification_item)
+                            bot_text_ids = np.array([self.char_to_id[char] for char in bot_text], dtype=np.int16)
 
-                        # Add to generation dataset
-                        if i > 0 and utterances[i - 1]["speaker_id"] != 0:  # Prior utterance is human
-                            if include_context:
-                                # Include full context
-                                human_context = np.array([self.char_to_id[char] for char in " ".join(context)], dtype=np.int16)
-                                input_data = np.concatenate((human_context, evidence_ids))
-                            else:
-                                # Exclude context, only current utterance
-                                input_data = np.concatenate((utterance_ids, evidence_ids))
-                            
-                            generation_item = {
-                                "id": unique_id,
-                                "input": input_data,
-                                "output": utterance_ids
+                            classification1_item = {
+                                "id": bot_utterance.get("exchange_id", "") + "_" + bot_utterance.get("utterance_id", ""),
+                                "input": bot_text_ids,  # Convert bot_text to IDs
+                                "output": output,
                             }
                             if is_training:
-                                generation_train.append(generation_item)
+                                classification1_train.append(classification1_item)
                             else:
-                                generation_val.append(generation_item)
+                                classification1_val.append(classification1_item)
 
-                        # Update context if including
-                        if include_context:
-                            context.append(utterance_text)
+                        # Update context with current human-bot pair
+                        context.extend([human_text, bot_text])
 
-        return (generation_train, classification_train), (generation_val, classification_val)
+        return (
+            (generation_train, classification1_train, classification2_train),
+            (generation_val, classification1_val, classification2_val),
+        )
+
+
 
 
 
@@ -212,18 +229,21 @@ if __name__ == '__main__' :
 
     print(f"Generation Data Size: {len(trains[0]) + len(valids[0])}")
     print(f"Classification Data Size: {len(trains[1]) + len(valids[1])}")
+    print(f"Classification2 Data Size: {len(trains[2]) + len(valids[2])}")
 
     print(f'gen tra size : {len(trains[0])}')
     print(f'gen val size : {len(valids[0])}')
     print(f'class tra size : {len(trains[1])}')
     print(f'class val size : {len(valids[1])}')
+    print(f'class tra size : {len(trains[2])}')
+    print(f'class val size : {len(valids[2])}')
 
-    gen_train, class_train = a.remove_mismatch(trains[0], trains[1])
-    gen_val, class_val = a.remove_mismatch(valids[0], valids[1])
+    # gen_train, class_train = a.remove_mismatch(trains[0], trains[1])
+    # gen_val, class_val = a.remove_mismatch(valids[0], valids[1])
 
-    print(f'managed gen tra size : {len(gen_train)}')
-    print(f'managed gen val size : {len(gen_val)}')
-    print(f'managed class tra size : {len(class_train)}')
-    print(f'managed class val size : {len(class_val)}')
+    # print(f'managed gen tra size : {len(gen_train)}')
+    # print(f'managed gen val size : {len(gen_val)}')
+    # print(f'managed class tra size : {len(class_train)}')
+    # print(f'managed class val size : {len(class_val)}')
 
     
