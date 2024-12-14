@@ -31,7 +31,7 @@ class AttentionClassificationModel:
         if classification_type in ['binary', 'multi-class']:
             self.loss_layer = SoftmaxWithLoss()  # For softmax-based single-class predictions
         elif classification_type == 'multi-label':
-            self.loss_layer = SigmoidWithLoss()  # For sigmoid-based multi-label predictions
+            self.loss_layer = SigmoidWithLoss(penalties=[8, 1])  # For sigmoid-based multi-label predictions
 
     def forward(self, xs, labels):
         """
@@ -113,7 +113,7 @@ class AttentionClassificationModel:
         # During inference, return predictions
         if self.classification_type == 'multi-label':
             predictions = 1 / (1 + np.exp(-scores))  # Sigmoid for multi-label probabilities
-            predictions = (predictions >= 0.5).astype(np.int16)
+            predictions = (predictions >= 0.5).astype(np.int32)
         else:
             predictions = np.argmax(scores, axis=1)  # Argmax for single-class prediction
 

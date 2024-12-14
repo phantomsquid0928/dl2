@@ -121,7 +121,7 @@ class AttentionDecoder:
 
             # Append generated tokens to the respective sequences
             for i in range(batch_size):
-                sampled[i].append(sample_ids[i, 0].astype(np.int16)) #TODO: 
+                sampled[i].append(sample_ids[i, 0].astype(np.int32)) #TODO: 
 
         return sampled
 

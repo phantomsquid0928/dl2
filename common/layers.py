@@ -106,27 +106,78 @@ class Sigmoid:
         return dx
 
 ##modified
-class SigmoidWithLoss: #not suitable for multilabel classification, modified.
-    def __init__(self):
+class SigmoidWithLoss:
+    def __init__(self, penalties=None):
+        """
+        Penalized Sigmoid with Loss for multilabel classification.
+
+        Args:
+        - penalties: A list or numpy array specifying penalties for predicting each label incorrectly.
+                     If None, behaves like a standard SigmoidWithLoss.
+        """
         self.params, self.grads = [], []
         self.loss = None
-        self.y = None  # sigmoid의 출력
-        self.t = None  # 정답 데이터
+        self.y = None  # Sigmoid outputs
+        self.t = None  # Ground truth labels
+        self.penalties = penalties  # Penalty array or None
 
-    def forward(self, x, t): 
+    def forward(self, x, t):
+        """
+        Forward pass for Penalized Sigmoid with Loss.
+
+        Args:
+        - x: Input logits (batch_size, num_labels).
+        - t: Target labels (batch_size, num_labels).
+
+        Returns:
+        - Penalized loss value.
+        """
         self.t = t
         self.y = 1 / (1 + np.exp(-x))  # Sigmoid activation
-        batch_size = t.shape[0]
-        self.loss = -np.sum(
-            self.t * np.log(self.y + 1e-7) + (1 - self.t) * np.log(1 - self.y + 1e-7)
-        ) / batch_size
+        batch_size, num_labels = t.shape
+
+        if self.penalties is None:
+            # Default to standard sigmoid loss if no penalties are provided
+            penalized_loss = self.t * np.log(self.y + 1e-7) + (1 - self.t) * np.log(1 - self.y + 1e-7)
+        else:
+            # Use penalties if provided
+            penalty_0 = self.penalties[0]  # Penalty for mispredicting 0
+            penalty_1 = self.penalties[1]  # Penalty for mispredicting 1
+            penalized_loss = (
+                penalty_1 * self.t * np.log(self.y + 1e-7) +
+                penalty_0 * (1 - self.t) * np.log(1 - self.y + 1e-7)
+            )
+
+        self.loss = -np.sum(penalized_loss) / batch_size
         return self.loss
 
     def backward(self, dout=1):
-        batch_size = self.t.shape[0] 
-        dx = (self.y - self.t) * dout / batch_size
+        """
+        Backward pass for Penalized Sigmoid with Loss.
+
+        Args:
+        - dout: Upstream gradient.
+
+        Returns:
+        - Penalized gradient with respect to input logits.
+        """
+        batch_size, num_labels = self.t.shape
+
+        if self.penalties is None:
+            # Standard gradient calculation if no penalties are provided
+            dx = (self.y - self.t) * dout / batch_size
+        else:
+            # Weighted gradient calculation
+            penalty_0 = self.penalties[0]
+            penalty_1 = self.penalties[1]
+            dx = dout * (
+                penalty_1 * self.t * (self.y - 1) +
+                penalty_0 * (1 - self.t) * self.y
+            ) / batch_size
 
         return dx
+
+
 
 
 class Dropout:

@@ -46,7 +46,7 @@ t2_test = [x['output'] for x in class2_val]
 def pad_sequences(data, max_len=None, padding_value=0):
     if max_len is None:
         max_len = max(len(seq) for seq in data)
-    padded_data = np.full((len(data), max_len), padding_value, dtype=np.int16)
+    padded_data = np.full((len(data), max_len), padding_value, dtype=np.int32)
     for i, seq in enumerate(data):
         seq = np.asarray(seq)
         truncated_seq = seq[:max_len]
@@ -54,14 +54,14 @@ def pad_sequences(data, max_len=None, padding_value=0):
     return padded_data
 
 x1_train_padded = pad_sequences(x1_train)
-t1_train_padded = np.array(t1_train, dtype=np.int16)
+t1_train_padded = np.array(t1_train, dtype=np.int32)
 x1_test_padded = pad_sequences(x1_test)
-t1_test_padded = np.array(t1_test, dtype=np.int16)
+t1_test_padded = np.array(t1_test, dtype=np.int32)
 
 x2_train_padded = pad_sequences(x2_train)
-t2_train_padded = np.array(t2_train, dtype=np.int16)
+t2_train_padded = np.array(t2_train, dtype=np.int32)
 x2_test_padded = pad_sequences(x2_test)
-t2_test_padded = np.array(t2_test, dtype=np.int16)
+t2_test_padded = np.array(t2_test, dtype=np.int32)
 
 print(f"x_train padded shape: {x1_train_padded.shape}")
 print(f"t_train  shape: {np.array(t1_train).shape}")
@@ -83,7 +83,8 @@ if config.GPU:
     # t2_test_padded = to_gpu(t2_test_padded)
 
 # Hyperparameters
-vocab_size = len(a.get_vocab()[0])
+# vocab_size = len(a.get_vocab()[0])
+vocab_size = len(a.char_to_id)
 wordvec_size = 5
 hidden_size = 16
 batch_size = 4096
@@ -102,6 +103,38 @@ optimizer2 = Adam()
 trainer1 = Trainer(model1, optimizer1)
 trainer2 = Trainer(model2, optimizer2)
 
+def batch_generate(model, data, batch_size):
+    """Generate predictions in batches."""
+    num_samples = len(data)
+    predictions = []
+
+    for i in range(0, num_samples, batch_size):
+        batch_data = data[i:i + batch_size]
+        batch_preds = model.generate(batch_data)
+        predictions.append(batch_preds)
+
+    return np.vstack(predictions)
+
+def calculate_metrics(preds, labels):
+    """Calculate precision, recall, and F1-score for multi-label classification."""
+    epsilon = 1e-7  # To avoid division by zero
+
+    # Flatten predictions and labels for simplicity
+    preds_flat = preds.flatten()
+    labels_flat = labels.flatten()
+
+    # Calculate True Positives, False Positives, and False Negatives
+    tp = np.sum((preds_flat == 1) & (labels_flat == 1))
+    fp = np.sum((preds_flat == 1) & (labels_flat == 0))
+    fn = np.sum((preds_flat == 0) & (labels_flat == 1))
+
+    # Precision, Recall, and F1-Score
+    precision = tp / (tp + fp + epsilon)
+    recall = tp / (tp + fn + epsilon)
+    f1_score = 2 * (precision * recall) / (precision + recall + epsilon)
+
+    return precision, recall, f1_score
+
 # Training loop
 for epoch in range(max_epoch):
     print(f"Epoch {epoch + 1}/{max_epoch} for Classification 1")
@@ -111,10 +144,18 @@ for epoch in range(max_epoch):
     # trainer2.fit(x2_train_padded, t2_train_padded, max_epoch=1, batch_size=batch_size, max_grad=max_grad)
 
     # Evaluate Classification 1
-    preds1 = model1.generate(x1_test_padded)
+    
+    # preds1 = model1.generate(x1_test_padded)
+    preds1 = batch_generate(model1, x1_test_padded, 4096)
     preds1 = (preds1 >= 0.5).astype(int)  # Threshold for multi-label classification
     acc1 = (preds1 == t1_test_padded).mean()
     print(f"Classification 1 Accuracy: {acc1 * 100:.2f}%")
+
+    precision1, recall1, f1_score1 = calculate_metrics(preds1, t1_test_padded)
+    
+    print(f"  Precision: {precision1 * 100:.2f}%")
+    print(f"  Recall: {recall1 * 100:.2f}%")
+    print(f"  F1-Score: {f1_score1 * 100:.2f}%")
 
     # Evaluate Classification 2
     # preds2 = model2.forward(x2_test_padded)
