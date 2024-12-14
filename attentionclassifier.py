@@ -1,10 +1,11 @@
 from common.time_layers import *
+from common.base_model import BaseModel
 from ch07.seq2seq import Encoder, Seq2seq
 from ch08.attention_layer import TimeAttention
 from ch08.attention_seq2seq import AttentionEncoder
 
-class AttentionClassificationModel:
-    def __init__(self, vocab_size, wordvec_size, hidden_size, output_size, classification_type='binary'):
+class AttentionClassificationModel(BaseModel):
+    def __init__(self, vocab_size, wordvec_size, hidden_size, output_size, classification_type='binary', penalties = None):
         """
         Unified model for binary/multi-class or multi-label classification.
 
@@ -28,10 +29,12 @@ class AttentionClassificationModel:
 
         # Choose loss based on classification type
         self.classification_type = classification_type
-        if classification_type in ['binary', 'multi-class']:
-            self.loss_layer = SoftmaxWithLoss()  # For softmax-based single-class predictions
+        if classification_type == 'binary':
+            self.loss_layer = SigmoidWithLoss(penalties=penalties)  # For softmax-based single-class predictions
+        elif classification_type == 'multi-class':
+            self.loss_layer = SoftmaxWithLoss()
         elif classification_type == 'multi-label':
-            self.loss_layer = SigmoidWithLoss(penalties=[8, 1])  # For sigmoid-based multi-label predictions
+            self.loss_layer = SigmoidWithLoss(penalties=penalties)  # For sigmoid-based multi-label predictions
 
     def forward(self, xs, labels):
         """

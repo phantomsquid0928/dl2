@@ -1,4 +1,4 @@
-# coding: utf-8
+#Train model2
 import sys
 from common import config
 
@@ -77,31 +77,10 @@ if config.GPU:
     x1_test_padded = to_gpu(x1_test_padded)
     t1_test_padded = to_gpu(t1_test)
 
-    # x2_train_padded = to_gpu(x2_train_padded)
-    # t2_train_padded = to_gpu(t2_train_padded)
-    # x2_test_padded = to_gpu(x2_test_padded)
-    # t2_test_padded = to_gpu(t2_test_padded)
-
-# Hyperparameters
-# vocab_size = len(a.get_vocab()[0])
-vocab_size = len(a.char_to_id)
-wordvec_size = 6
-hidden_size = 32
-batch_size = 4096
-max_epoch = 5
-max_grad = 5.0
-output_size1 = 9
-output_size2 = 1
-
-# Initialize models
-model1 = AttentionClassificationModel(vocab_size, wordvec_size, hidden_size, output_size1, classification_type='multi-label')
-model2 = AttentionClassificationModel(vocab_size, wordvec_size, hidden_size, output_size2, classification_type='binary')
-
-optimizer1 = Adam()
-optimizer2 = Adam()
-
-trainer1 = Trainer(model1, optimizer1)
-trainer2 = Trainer(model2, optimizer2)
+    x2_train_padded = to_gpu(x2_train_padded)
+    t2_train_padded = to_gpu(t2_train_padded)
+    x2_test_padded = to_gpu(x2_test_padded)
+    t2_test_padded = to_gpu(t2_test_padded)
 
 def batch_generate(model, data, batch_size):
     """Generate predictions in batches."""
@@ -135,27 +114,48 @@ def calculate_metrics(preds, labels):
 
     return precision, recall, f1_score
 
-# Training loop
+
+
+
+
+vocab_size = len(a.char_to_id)
+wordvec_size = 6
+hidden_size = 32
+batch_size = 1024
+max_epoch = 5
+max_grad = 20.0 #128 - 5, 1024 - 20 5 * 2root2   4096 - 40  5 * 4 root 2
+output_size1 = 9
+output_size2 = 1
+print(f'exists : {np.sum(np.array(t2_train_padded).flatten() == 0)}, {np.sum(np.array(t2_train_padded).flatten() == 1)}')
+print(f'exists: {np.sum(np.array(t2_test_padded).flatten() == 0)}, {np.sum(np.array(t2_test_padded).flatten() == 1)}')
+penalties = [(np.sum(np.array(t2_train_padded).flatten() == 1) / np.sum(np.array(t2_train_padded).flatten() == 0)).item(), 1]
+print(penalties)
+
+model2 = AttentionClassificationModel(vocab_size, wordvec_size, hidden_size, output_size2, classification_type='binary', penalties=penalties)
+
+optimizer2 = Adam()
+
+trainer2 = Trainer(model2, optimizer2)
+
 for epoch in range(max_epoch):
-    print(f"Epoch {epoch + 1}/{max_epoch} for Classification 1")
-    trainer1.fit(x1_train_padded, t1_train_padded, max_epoch=1, batch_size=batch_size, max_grad=max_grad)
+    print(f"Epoch {epoch + 1}/{max_epoch} for Classification 2")
+    trainer2.fit(x2_train_padded, t2_train_padded, max_epoch=1, batch_size=batch_size, max_grad=max_grad)
 
     # print(f"Epoch {epoch + 1}/{max_epoch} for Classification 2")
     # trainer2.fit(x2_train_padded, t2_train_padded, max_epoch=1, batch_size=batch_size, max_grad=max_grad)
 
-    # Evaluate Classification 1
-    
-    # preds1 = model1.generate(x1_test_padded)
-    preds1 = batch_generate(model1, x1_test_padded, 4096)
-    preds1 = (preds1 >= 0.5).astype(int)  # Threshold for multi-label classification
-    acc1 = (preds1 == t1_test_padded).mean()
+    # Evaluate Classification 2
+
+    preds2 = batch_generate(model2, x2_test_padded, 4096)
+    preds2 = (preds2 >= 0.5).astype(int)  # Threshold for multi-label classification
+    acc1 = (preds2 == t2_test_padded).mean()
     print(f"Classification 1 Accuracy: {acc1 * 100:.2f}%")
 
-    precision1, recall1, f1_score1 = calculate_metrics(preds1, t1_test_padded)
+    precision2, recall2, f1_score2 = calculate_metrics(preds2, t2_test_padded)
 
-    print(f"  Precision: {precision1 * 100:.2f}%")
-    print(f"  Recall: {recall1 * 100:.2f}%")
-    print(f"  F1-Score: {f1_score1 * 100:.2f}%")
+    print(f"  Precision: {precision2 * 100:.2f}%")
+    print(f"  Recall: {recall2 * 100:.2f}%")
+    print(f"  F1-Score: {f1_score2 * 100:.2f}%")
 
     # Evaluate Classification 2
     # preds2 = model2.forward(x2_test_padded)
@@ -163,13 +163,11 @@ for epoch in range(max_epoch):
     # acc2 = (preds2 == t2_test_padded).mean()
     # print(f"Classification 2 Accuracy: {acc2 * 100:.2f}%")
 
-# Save models
-model1.save_params("classification1_params.pkl")
-# model2.save_params("classification2_params.pkl")
+model2.save_params("classification2_params.pkl")
 
 # Visualization
-plt.plot(trainer1.loss_list, label='Classification 1 Loss')
-# plt.plot(trainer2.loss_list, label='Classification 2 Loss')
+#plt.plot(trainer1.loss_list, label='Classification 1 Loss')
+plt.plot(trainer2.loss_list, label='Classification 2 Loss')
 plt.xlabel('Iterations')
 plt.ylabel('Loss')
 plt.legend()

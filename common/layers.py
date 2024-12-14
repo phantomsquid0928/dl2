@@ -134,7 +134,9 @@ class SigmoidWithLoss:
         """
         self.t = t
         self.y = 1 / (1 + np.exp(-x))  # Sigmoid activation
-        batch_size, num_labels = t.shape
+        if t.ndim == 1:                # change to (batch_size, 1) (2d array) if shape was (batch_size,) (1d array)
+            self.t = t[:, None]
+        batch_size, num_labels = self.t.shape
 
         if self.penalties is None:
             # Default to standard sigmoid loss if no penalties are provided
