@@ -8,18 +8,10 @@ from typing import Dict, Any
 
 class ResponseQAloader:
     def __init__(self, base_path: str):
-        """
-        Initializes the loader with the base path to the dataset.
-        :param base_path: The root directory containing the dataset (e.g., 'responsedata').
-        """
         self.base_path = base_path
 
     def _extract_zip(self, zip_path: str) -> Dict[str, Any]:
-        """
-        Extracts a ZIP file and reads its JSON files.
-        :param zip_path: Path to the ZIP file.
-        :return: A dictionary of JSON data grouped by file names.
-        """
+    
         extracted_data = []
         with zipfile.ZipFile(zip_path, 'r') as z:
             for file_name in z.namelist():
@@ -33,10 +25,7 @@ class ResponseQAloader:
         return extracted_data
 
     def load_data(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Loads and processes the dataset into a nested dictionary.
-        :return: A dictionary organized by `TL` prefix and topic.
-        """
+        
         data_dict = {}
 
         # Process Training and Validation directories

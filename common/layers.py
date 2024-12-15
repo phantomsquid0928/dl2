@@ -108,13 +108,7 @@ class Sigmoid:
 ##modified
 class SigmoidWithLoss:
     def __init__(self, penalties=None):
-        """
-        Penalized Sigmoid with Loss for multilabel classification.
-
-        Args:
-        - penalties: A list or numpy array specifying penalties for predicting each label incorrectly.
-                     If None, behaves like a standard SigmoidWithLoss.
-        """
+       
         self.params, self.grads = [], []
         self.loss = None
         self.y = None  # Sigmoid outputs
@@ -122,16 +116,7 @@ class SigmoidWithLoss:
         self.penalties = penalties  # Penalty array or None
 
     def forward(self, x, t):
-        """
-        Forward pass for Penalized Sigmoid with Loss.
-
-        Args:
-        - x: Input logits (batch_size, num_labels).
-        - t: Target labels (batch_size, num_labels).
-
-        Returns:
-        - Penalized loss value.
-        """
+        
         self.t = t
         self.y = 1 / (1 + np.exp(-x))  # Sigmoid activation
         if t.ndim == 1:                # change to (batch_size, 1) (2d array) if shape was (batch_size,) (1d array)
@@ -154,15 +139,7 @@ class SigmoidWithLoss:
         return self.loss
 
     def backward(self, dout=1):
-        """
-        Backward pass for Penalized Sigmoid with Loss.
-
-        Args:
-        - dout: Upstream gradient.
-
-        Returns:
-        - Penalized gradient with respect to input logits.
-        """
+    
         batch_size, num_labels = self.t.shape
 
         if self.penalties is None:

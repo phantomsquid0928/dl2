@@ -14,7 +14,6 @@ class preprocess:
         self.tokenized_cache = self.load_cache()
 
     def load_cache(self):
-        """Load the tokenized cache from file if it exists."""
         if os.path.exists(self.cache_path):
             print(f"Loading tokenized cache from {self.cache_path}...")
             with open(self.cache_path, "rb") as f:
@@ -22,13 +21,10 @@ class preprocess:
         return {}
 
     def save_cache(self):
-        """Save the tokenized cache to file."""
-        print(f"Saving tokenized cache to {self.cache_path}...")
         with open(self.cache_path, "wb") as f:
             pickle.dump(self.tokenized_cache, f)
 
     def _update_vocab(self, text):
-        """Update the vocabulary with characters from the given text."""
         for char in text:
             if char not in self.char_to_id:
                 new_id = len(self.char_to_id)
@@ -36,7 +32,6 @@ class preprocess:
                 self.id_to_char[new_id] = char
 
     def tokenize_utterance(self, utterance):
-        """Tokenize a single utterance using Mecab and update cache."""
         if utterance in self.tokenized_cache:
             return self.tokenized_cache[utterance]
         tokens = self.mecab.morphs(utterance)
@@ -44,7 +39,6 @@ class preprocess:
         return tokens
 
     def tokenize_utterances(self, utterances):
-        """Tokenize a list of utterances using Mecab in parallel."""
         print(f"Tokenizing {len(utterances)} utterances...")
         tokenized_results = []
         batch_size = 10000  # Process in smaller batches to optimize performance
