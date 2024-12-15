@@ -70,12 +70,22 @@ print(f"x_test padded shape: {x1_test_padded.shape}")
 print(f"t_test shape: {np.array(t1_test).shape}")
 print(f"t_train padded shape: {t1_test_padded.shape}")
 
+# x2_train_padded = x2_train_padded[:10000]
+# t2_train_padded = t2_train_padded[:10000]
+# x2_test_padded = x2_test_padded[:3000]
+# t2_test_padded = t2_test_padded[:3000]
+# if t2_train_padded.ndim == 1:
+#     t2_train_padded = t2_train_padded[:, None]
+# if t2_test_padded.ndim == 1:
+#     t2_test_padded = t2_test_padded[:, None]
+# x2_test_padded = x2_test_padded[:]
+
 # Transfer to GPU if enabled
 if config.GPU:
-    x1_train_padded = to_gpu(x1_train_padded)
-    t1_train_padded = to_gpu(t1_train)
-    x1_test_padded = to_gpu(x1_test_padded)
-    t1_test_padded = to_gpu(t1_test)
+    # x1_train_padded = to_gpu(x1_train_padded)
+    # t1_train_padded = to_gpu(t1_train)
+    # x1_test_padded = to_gpu(x1_test_padded)
+    # t1_test_padded = to_gpu(t1_test)
 
     x2_train_padded = to_gpu(x2_train_padded)
     t2_train_padded = to_gpu(t2_train_padded)
@@ -90,6 +100,8 @@ def batch_generate(model, data, batch_size):
     for i in range(0, num_samples, batch_size):
         batch_data = data[i:i + batch_size]
         batch_preds = model.generate(batch_data)
+        if batch_preds.ndim == 1:
+            batch_preds = batch_preds[:, None] 
         predictions.append(batch_preds)
 
     return np.vstack(predictions)
@@ -146,7 +158,7 @@ for epoch in range(max_epoch):
 
     # Evaluate Classification 2
 
-    preds2 = batch_generate(model2, x2_test_padded, 4096)
+    preds2 = batch_generate(model2, x2_test_padded, 2048)
     preds2 = (preds2 >= 0.5).astype(int)  # Threshold for multi-label classification
     acc1 = (preds2 == t2_test_padded).mean()
     print(f"Classification 1 Accuracy: {acc1 * 100:.2f}%")

@@ -104,7 +104,7 @@ class preprocess:
                     else : 
                         full_context_ids = np.array([self.char_to_id[char] for char in full_context], dtype=np.int32)
 
-                    likeability_label = 1 if sum(1 for lbl in likeability if lbl == "yes") >= 2 else 0
+                    likeability_label = [1] if sum(1 for lbl in likeability if lbl == "yes") >= 2 else [0]
                     classification2_item = {
                         "id": conversation.get("conversation_id", ""),
                         "input": full_context_ids,
